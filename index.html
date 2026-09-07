@@ -42,18 +42,22 @@
 <script type="module">
 import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm';
 import { loadRanking, saveScore } from './ranking.js';
-const TIME_LIMIT=7,AI_THRESHOLD=.66;
+const TIME_LIMIT=7,AI_THRESHOLD=.80;
 const VOCAB_SETS={'기본 단어장':[
 {english:'abandon',korean:'버리다, 포기하다'},{english:'accurate',korean:'정확한, 정밀한'},{english:'consume',korean:'소비하다, 섭취하다'},{english:'purchase',korean:'구매하다, 사다'},{english:'reduce',korean:'줄이다, 감소시키다'},{english:'maintain',korean:'유지하다'},{english:'require',korean:'요구하다, 필요로 하다'},{english:'increase',korean:'증가하다, 늘리다'},{english:'provide',korean:'제공하다'},{english:'consider',korean:'고려하다, 생각하다'}]};
+const GENERIC_ANSWERS=new Set(['하다','되다','이다','시키다','있다','없다','것','거','수','함','함다','한다']);
 const $=id=>document.getElementById(id);let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,extractor=null,results=[],playerName='',selectedSet='';
 function initSets(){for(const name of Object.keys(VOCAB_SETS)){const o=document.createElement('option');o.value=name;o.textContent=name;$('set').appendChild(o)}updateSetInfo()}
 function updateSetInfo(){const r=VOCAB_SETS[$('set').value]||[];$('setInfo').textContent='총 '+r.length+'문제 · 전체 문제 완료 시 랭킹 반영';loadRanking($('set').value,$('rankingSetup'))}
 function norm(s){return String(s||'').trim().toLowerCase().replace(/[~!@#$%^&*()_+={}\[\]:"'<>?.\\-]/g,'').replace(/\s+/g,' ')}
+function compact(s){return norm(s).replace(/\s/g,'')}
 function answers(s){return String(s).split(/[,;/|·\n]+/).map(norm).filter(Boolean)}
-function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return true;for(const suf of ['하다','되다','시키다','이다','다']){if(c.endsWith(suf)&&u===c.slice(0,-suf.length))return true;if(u.endsWith(suf)&&c===u.slice(0,-suf.length))return true}return u.length>=2&&c.length>=2&&(u.includes(c)||c.includes(u))}
-function isJamoOnly(s){const t=norm(s).replace(/\s/g,'');return !!t&&/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t)}function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return true;for(const suf of ['하다','되다','시키다','이다']){if(c.endsWith(suf)){const stem=c.slice(0,-suf.length);if(stem.length>=2&&u===stem)return true}if(u.endsWith(suf)){const stem=u.slice(0,-suf.length);if(stem.length>=2&&c===stem)return true}}return false}
+function isJamoOnly(s){const t=compact(s);return !!t&&/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t)}
+function isTooGeneric(s){const t=compact(s);return GENERIC_ANSWERS.has(t)}
+function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
 function cosine(a,b){let d=0,aa=0,bb=0;for(let j=0;j<a.length;j++){d+=a[j]*b[j];aa+=a[j]*a[j];bb+=b[j]*b[j]}return d/(Math.sqrt(aa)*Math.sqrt(bb)||1)}async function vec(t){const o=await extractor(t,{pooling:'mean',normalize:true});return Array.from(o.data)}
-async function judge(user,correct){const list=answers(correct),u=norm(user);if(!u)return{ok:false,sim:0};if(list.some(c=>u===c))return{ok:true,sim:1};if(isJamoOnly(u)||u.replace(/\s/g,'').length<2)return{ok:false,sim:0};for(const c of list)if(simple(u,c))return{ok:true,sim:1};if(!extractor)return{ok:false,sim:0};const uv=await vec(u);let best=-1;for(const c of list)best=Math.max(best,cosine(uv,await vec(c)));return{ok:best>=AI_THRESHOLD,sim:best}}
+async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false,sim:0};if(list.some(c=>u===c))return{ok:true,sim:1};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false,sim:0};for(const c of list)if(simple(u,c))return{ok:true,sim:1};if(uc.length<3||!extractor)return{ok:false,sim:0};const uv=await vec(u);let best=-1;for(const c of list)best=Math.max(best,cosine(uv,await vec(c)));return{ok:best>=AI_THRESHOLD,sim:best}}
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent='문제 '+(i+1)+' / '+questions.length;$('scoreNow').textContent='점수 '+score;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
 async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false,sim:0};if(!timeout&&user){$('feedback').innerHTML='<div class="feedback">판정 중...</div>';try{r=await judge(user,q.korean)}catch{r={ok:answers(q.korean).some(c=>simple(user,c)),sim:0}}}if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});$('feedback').innerHTML=r.ok?'<div class="feedback ok">✅ 정답<br>정답: '+q.korean+'</div>':'<div class="feedback no">'+(timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+q.korean+'</div>';$('next').classList.remove('hidden')}
 function esc(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
