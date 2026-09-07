@@ -4,19 +4,18 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>7초 단어 시험</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111;background:#f5f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:0 auto;padding:28px 18px}.card{background:#fff;border-radius:22px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.08)}h1{margin:0 0 8px}.sub{color:#666;margin:0 0 24px}.field{margin:14px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px}input,button{width:100%;border-radius:13px;font-size:17px;padding:14px}input{border:1px solid #d7dbe5;background:#fff}button{border:0;background:#111;color:#fff;font-weight:800;cursor:pointer}button.secondary{background:#eef1f6;color:#111}.hidden{display:none}.word{font-size:52px;font-weight:900;text-align:center;margin:36px 0 10px;word-break:break-word}.timer{text-align:center;font-size:30px;font-weight:800;margin-bottom:22px}.meta{display:flex;justify-content:space-between;color:#666;font-size:14px}.feedback{padding:16px;border-radius:14px;margin:14px 0}.ok{background:#eaf8ee;color:#176b2c}.no{background:#fff0f0;color:#a42626}.muted{color:#777;font-size:14px}.result-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.metric{background:#f6f7fa;border-radius:15px;padding:16px;text-align:center}.metric b{display:block;font-size:24px;margin-top:5px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}.loader{margin-top:10px;color:#666;font-size:14px}@media(max-width:560px){.result-row{grid-template-columns:1fr}.card{padding:20px}.word{font-size:42px}}
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111;background:#f5f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:0 auto;padding:28px 18px}.card{background:#fff;border-radius:22px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.08)}h1{margin:0 0 8px}.sub{color:#666;margin:0 0 24px}.field{margin:14px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px}input,select,button{width:100%;border-radius:13px;font-size:17px;padding:14px}input,select{border:1px solid #d7dbe5;background:#fff}button{border:0;background:#111;color:#fff;font-weight:800;cursor:pointer}button.secondary{background:#eef1f6;color:#111}.hidden{display:none}.word{font-size:52px;font-weight:900;text-align:center;margin:36px 0 10px;word-break:break-word}.timer{text-align:center;font-size:30px;font-weight:800;margin-bottom:22px}.meta{display:flex;justify-content:space-between;color:#666;font-size:14px}.feedback{padding:16px;border-radius:14px;margin:14px 0}.ok{background:#eaf8ee;color:#176b2c}.no{background:#fff0f0;color:#a42626}.muted{color:#777;font-size:14px}.result-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.metric{background:#f6f7fa;border-radius:15px;padding:16px;text-align:center}.metric b{display:block;font-size:24px;margin-top:5px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}.loader{margin-top:10px;color:#666;font-size:14px}@media(max-width:560px){.result-row{grid-template-columns:1fr}.card{padding:20px}.word{font-size:42px}}
 </style>
 </head>
 <body>
 <div class="wrap"><div class="card">
 <section id="setup">
 <h1>📚 7초 단어 시험</h1>
-<p class="sub">영어를 보고 <b>7초 안에</b> 한국어 뜻을 입력하세요. 제한시간은 모든 참가자에게 동일하게 7초로 고정됩니다.</p>
-<div class="field"><label>단어장 Excel 파일 (.xlsx)</label><input id="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /></div>
-<p class="muted">첫 번째 시트의 첫 줄은 <b>english</b>, <b>korean</b> 열이어야 합니다. 아까 만든 엑셀 양식을 그대로 사용하면 됩니다.</p>
-<div class="field"><label>문제 수</label><input id="count" type="number" min="1" value="20" /></div>
+<p class="sub">단어장을 선택하고 바로 시작하세요. 파일 업로드는 필요 없습니다. 제한시간은 모든 참가자에게 동일하게 7초입니다.</p>
+<div class="field"><label>단어장 선택</label><select id="set"></select></div>
+<p id="setInfo" class="muted"></p>
+<div class="field"><label>문제 수</label><input id="count" type="number" min="1" value="10" /></div>
 <div class="field"><label>AI 유사도 기준 (0.50~0.90)</label><input id="threshold" type="number" min="0.5" max="0.9" step="0.01" value="0.66" /></div>
 <button id="start">시험 시작</button>
 <div id="status" class="loader">첫 시험 때 무료 AI 모델을 브라우저에 한 번 불러옵니다.</div>
@@ -39,9 +38,24 @@
 <script type="module">
 import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 const TIME_LIMIT=7;
+const VOCAB_SETS={
+  '기본 단어장':[
+    {english:'abandon',korean:'버리다, 포기하다'},
+    {english:'accurate',korean:'정확한, 정밀한'},
+    {english:'consume',korean:'소비하다, 섭취하다'},
+    {english:'purchase',korean:'구매하다, 사다'},
+    {english:'reduce',korean:'줄이다, 감소시키다'},
+    {english:'maintain',korean:'유지하다'},
+    {english:'require',korean:'요구하다, 필요로 하다'},
+    {english:'increase',korean:'증가하다, 늘리다'},
+    {english:'provide',korean:'제공하다'},
+    {english:'consider',korean:'고려하다, 생각하다'}
+  ]
+};
 const $=id=>document.getElementById(id);
 let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,extractor=null,results=[];
-function parseExcel(arrayBuffer){const wb=XLSX.read(arrayBuffer,{type:'array'});const sheetName=wb.SheetNames.includes('단어장')?'단어장':wb.SheetNames[0];const data=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:''});if(!data.length)throw Error('엑셀에 단어가 없습니다.');return data.map(r=>{const normalized={};for(const [k,v] of Object.entries(r))normalized[String(k).trim().toLowerCase()]=v;return{english:String(normalized.english||'').trim(),korean:String(normalized.korean||'').trim()}}).filter(x=>x.english&&x.korean)}
+function initSets(){for(const name of Object.keys(VOCAB_SETS)){const o=document.createElement('option');o.value=name;o.textContent=name;$('set').appendChild(o)}updateSetInfo()}
+function updateSetInfo(){const rows=VOCAB_SETS[$('set').value]||[];$('setInfo').textContent=`총 ${rows.length}개 단어`;if(Number($('count').value)>rows.length)$('count').value=rows.length;$('count').max=rows.length}
 function norm(s){return String(s||'').trim().toLowerCase().replace(/[~!@#$%^&*()_+={}\[\]:"'<>?.\\-]/g,'').replace(/\s+/g,' ')}
 function answers(s){return String(s).split(/[,;/|·\n]+/).map(norm).filter(Boolean)}
 function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return true;for(const suf of ['하다','되다','시키다','이다','다']){if(c.endsWith(suf)&&u===c.slice(0,-suf.length))return true;if(u.endsWith(suf)&&c===u.slice(0,-suf.length))return true;}return u.length>=2&&c.length>=2&&(u.includes(c)||c.includes(u))}
@@ -54,8 +68,8 @@ async function judge(user,correct){const list=answers(correct);const u=norm(user
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent=`문제 ${i+1} / ${questions.length}`;$('scoreNow').textContent=`점수 ${score}`;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
 async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],elapsed=Math.min(TIME_LIMIT,(performance.now()-started)/1000),user=timeout?'':$('answer').value.trim();let r={ok:false,sim:0};if(!timeout&&user){$('feedback').innerHTML='<div class="feedback">판정 중...</div>';try{r=await judge(user,q.korean)}catch(e){r={ok:answers(q.korean).some(c=>simple(user,c)),sim:0}}}if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok,sim:r.sim,time:elapsed});$('feedback').innerHTML=r.ok?`<div class="feedback ok">✅ 정답 · 유사도 ${r.sim.toFixed(2)}<br>정답: ${q.korean}</div>`:`<div class="feedback no">${timeout?'⏰ 시간 초과':'❌ 오답'} · 유사도 ${r.sim.toFixed(2)}<br>정답: ${q.korean}</div>`;$('next').classList.remove('hidden')}
 function finish(){clearInterval(ticker);$('quiz').classList.add('hidden');$('done').classList.remove('hidden');$('mScore').textContent=`${score}/${questions.length}`;$('mRate').textContent=`${Math.round(score/questions.length*100)}%`;const avg=results.length?results.reduce((s,r)=>s+r.time,0)/results.length:0;$('mTime').textContent=`${avg.toFixed(1)}초`;const w=results.filter(r=>!r.ok);$('wrong').innerHTML=w.length?'<h3>오답</h3><table><tr><th>영어</th><th>내 답</th><th>정답</th></tr>'+w.map(r=>`<tr><td>${r.english}</td><td>${r.user}</td><td>${r.correct}</td></tr>`).join('')+'</table><br>':'<p class="feedback ok">전부 맞았습니다!</p>'}
-$('start').onclick=async()=>{const f=$('file').files[0];if(!f)return alert('엑셀(.xlsx) 단어장을 먼저 선택하세요.');if(!f.name.toLowerCase().endsWith('.xlsx'))return alert('.xlsx 엑셀 파일만 올릴 수 있습니다.');try{rows=parseExcel(await f.arrayBuffer())}catch(e){return alert('엑셀을 읽지 못했습니다: '+e.message)}if(!rows.length)return alert('english / korean 열을 확인하세요.');$('status').textContent=`단어 ${rows.length}개 확인 · 무료 AI 모델 불러오는 중...`;$('start').disabled=true;try{extractor=await pipeline('feature-extraction','Xenova/paraphrase-multilingual-MiniLM-L12-v2');$('status').textContent='AI 모델 준비 완료'}catch(e){$('status').textContent='AI 모델을 못 불러와 기본 판정으로 진행합니다.'}const n=Math.min(Math.max(1,Number($('count').value)||20),rows.length);questions=shuffle(rows).slice(0,n);$('setup').classList.add('hidden');$('quiz').classList.remove('hidden');show()};
-$('submit').onclick=()=>submit(false);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')submit(false)});$('next').onclick=()=>{i++;show()};
+$('start').onclick=async()=>{rows=VOCAB_SETS[$('set').value]||[];if(!rows.length)return alert('선택한 단어장에 단어가 없습니다.');const n=Math.min(Math.max(1,Number($('count').value)||rows.length),rows.length);$('status').textContent=`${$('set').value} · ${n}문제 · AI 모델 불러오는 중...`;$('start').disabled=true;try{extractor=await pipeline('feature-extraction','Xenova/paraphrase-multilingual-MiniLM-L12-v2');$('status').textContent='AI 모델 준비 완료'}catch(e){$('status').textContent='AI 모델을 못 불러와 기본 판정으로 진행합니다.'}questions=shuffle(rows).slice(0,n);$('setup').classList.add('hidden');$('quiz').classList.remove('hidden');show()};
+$('set').onchange=updateSetInfo;$('submit').onclick=()=>submit(false);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')submit(false)});$('next').onclick=()=>{i++;show()};initSets();
 </script>
 </body>
 </html>
