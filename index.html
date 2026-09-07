@@ -41,24 +41,16 @@ import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17
 const TIME_LIMIT=7;
 const $=id=>document.getElementById(id);
 let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,extractor=null,results=[];
-function parseExcel(arrayBuffer){
-  const wb=XLSX.read(arrayBuffer,{type:'array'});
-  const sheetName=wb.SheetNames.includes('단어장')?'단어장':wb.SheetNames[0];
-  const data=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:''});
-  if(!data.length)throw Error('엑셀에 단어가 없습니다.');
-  return data.map(r=>{
-    const normalized={};
-    for(const [k,v] of Object.entries(r)) normalized[String(k).trim().toLowerCase()]=v;
-    return {english:String(normalized.english||'').trim(),korean:String(normalized.korean||'').trim()};
-  }).filter(x=>x.english&&x.korean);
-}
+function parseExcel(arrayBuffer){const wb=XLSX.read(arrayBuffer,{type:'array'});const sheetName=wb.SheetNames.includes('단어장')?'단어장':wb.SheetNames[0];const data=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{defval:''});if(!data.length)throw Error('엑셀에 단어가 없습니다.');return data.map(r=>{const normalized={};for(const [k,v] of Object.entries(r))normalized[String(k).trim().toLowerCase()]=v;return{english:String(normalized.english||'').trim(),korean:String(normalized.korean||'').trim()}}).filter(x=>x.english&&x.korean)}
 function norm(s){return String(s||'').trim().toLowerCase().replace(/[~!@#$%^&*()_+={}\[\]:"'<>?.\\-]/g,'').replace(/\s+/g,' ')}
 function answers(s){return String(s).split(/[,;/|·\n]+/).map(norm).filter(Boolean)}
 function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return true;for(const suf of ['하다','되다','시키다','이다','다']){if(c.endsWith(suf)&&u===c.slice(0,-suf.length))return true;if(u.endsWith(suf)&&c===u.slice(0,-suf.length))return true;}return u.length>=2&&c.length>=2&&(u.includes(c)||c.includes(u))}
+function isJamoOnly(s){const t=norm(s).replace(/\s/g,'');return !!t&&/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t)}
+function exactAnswer(user,list){const u=norm(user);return list.some(c=>u===norm(c))}
 function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
 function cosine(a,b){let d=0,aa=0,bb=0;for(let j=0;j<a.length;j++){d+=a[j]*b[j];aa+=a[j]*a[j];bb+=b[j]*b[j]}return d/(Math.sqrt(aa)*Math.sqrt(bb)||1)}
 async function vec(text){const out=await extractor(text,{pooling:'mean',normalize:true});return Array.from(out.data)}
-async function judge(user,correct){const list=answers(correct);for(const c of list)if(simple(user,c))return{ok:true,sim:1};if(!extractor)return{ok:false,sim:0};const uv=await vec(user);let best=-1;for(const c of list)best=Math.max(best,cosine(uv,await vec(c)));return{ok:best>=Number($('threshold').value),sim:best}}
+async function judge(user,correct){const list=answers(correct);const u=norm(user);if(!u)return{ok:false,sim:0};if(exactAnswer(u,list))return{ok:true,sim:1};if(isJamoOnly(u))return{ok:false,sim:0};if(u.replace(/\s/g,'').length<2)return{ok:false,sim:0};for(const c of list)if(simple(u,c))return{ok:true,sim:1};if(!extractor)return{ok:false,sim:0};const uv=await vec(u);let best=-1;for(const c of list)best=Math.max(best,cosine(uv,await vec(c)));return{ok:best>=Number($('threshold').value),sim:best}}
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent=`문제 ${i+1} / ${questions.length}`;$('scoreNow').textContent=`점수 ${score}`;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
 async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],elapsed=Math.min(TIME_LIMIT,(performance.now()-started)/1000),user=timeout?'':$('answer').value.trim();let r={ok:false,sim:0};if(!timeout&&user){$('feedback').innerHTML='<div class="feedback">판정 중...</div>';try{r=await judge(user,q.korean)}catch(e){r={ok:answers(q.korean).some(c=>simple(user,c)),sim:0}}}if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok,sim:r.sim,time:elapsed});$('feedback').innerHTML=r.ok?`<div class="feedback ok">✅ 정답 · 유사도 ${r.sim.toFixed(2)}<br>정답: ${q.korean}</div>`:`<div class="feedback no">${timeout?'⏰ 시간 초과':'❌ 오답'} · 유사도 ${r.sim.toFixed(2)}<br>정답: ${q.korean}</div>`;$('next').classList.remove('hidden')}
 function finish(){clearInterval(ticker);$('quiz').classList.add('hidden');$('done').classList.remove('hidden');$('mScore').textContent=`${score}/${questions.length}`;$('mRate').textContent=`${Math.round(score/questions.length*100)}%`;const avg=results.length?results.reduce((s,r)=>s+r.time,0)/results.length:0;$('mTime').textContent=`${avg.toFixed(1)}초`;const w=results.filter(r=>!r.ok);$('wrong').innerHTML=w.length?'<h3>오답</h3><table><tr><th>영어</th><th>내 답</th><th>정답</th></tr>'+w.map(r=>`<tr><td>${r.english}</td><td>${r.user}</td><td>${r.correct}</td></tr>`).join('')+'</table><br>':'<p class="feedback ok">전부 맞았습니다!</p>'}
