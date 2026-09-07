@@ -45,6 +45,16 @@ const TIME_LIMIT=7;
 const VOCAB_SETS={'기본 단어장':[
 {english:'abandon',korean:'버리다, 포기하다'},{english:'accurate',korean:'정확한, 정밀한'},{english:'consume',korean:'소비하다, 섭취하다'},{english:'purchase',korean:'구매하다, 사다'},{english:'reduce',korean:'줄이다, 감소시키다'},{english:'maintain',korean:'유지하다'},{english:'require',korean:'요구하다, 필요로 하다'},{english:'increase',korean:'증가하다, 늘리다'},{english:'provide',korean:'제공하다'},{english:'consider',korean:'고려하다, 생각하다'}]};
 const GENERIC_ANSWERS=new Set(['하다','되다','이다','시키다','있다','없다','것','거','수','함','함다','한다']);
+const SAFE_SYNONYM_GROUPS=[
+['구매하다','구입하다','사다'],
+['줄이다','감소시키다'],
+['고려하다','생각하다'],
+['버리다','포기하다'],
+['정확한','정밀한'],
+['소비하다','섭취하다'],
+['요구하다','필요로 하다'],
+['증가하다','늘리다']
+];
 const $=id=>document.getElementById(id);let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,results=[],playerName='',selectedSet='';
 function initSets(){for(const name of Object.keys(VOCAB_SETS)){const o=document.createElement('option');o.value=name;o.textContent=name;$('set').appendChild(o)}updateSetInfo()}
 function updateSetInfo(){const r=VOCAB_SETS[$('set').value]||[];$('setInfo').textContent='총 '+r.length+'문제 · 전체 문제 완료 시 랭킹 반영';loadRanking($('set').value,$('rankingSetup'))}
@@ -54,8 +64,9 @@ function answers(s){return String(s).split(/[,;/|·\n]+/).map(norm).filter(Boole
 function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return true;for(const suf of ['하다','되다','시키다','이다']){if(c.endsWith(suf)){const stem=c.slice(0,-suf.length);if(stem.length>=2&&u===stem)return true}if(u.endsWith(suf)){const stem=u.slice(0,-suf.length);if(stem.length>=2&&c===stem)return true}}return false}
 function isJamoOnly(s){const t=compact(s);return !!t&&/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t)}
 function isTooGeneric(s){const t=compact(s);return GENERIC_ANSWERS.has(t)}
+function sameSafeSynonym(a,b){a=norm(a);b=norm(b);return SAFE_SYNONYM_GROUPS.some(g=>g.includes(a)&&g.includes(b))}
 function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
-async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false};if(list.some(c=>u===c))return{ok:true};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false};for(const c of list)if(simple(u,c))return{ok:true};return{ok:false}}
+async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false};if(list.some(c=>u===c))return{ok:true};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false};for(const c of list){if(simple(u,c)||sameSafeSynonym(u,c))return{ok:true}}return{ok:false}}
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent='문제 '+(i+1)+' / '+questions.length;$('scoreNow').textContent='점수 '+score;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
 async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false};if(!timeout&&user)r=await judge(user,q.korean);if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});$('feedback').innerHTML=r.ok?'<div class="feedback ok">✅ 정답<br>정답: '+q.korean+'<br><span class="muted">2초 후 다음 문제로 넘어갑니다.</span></div>':'<div class="feedback no">'+(timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+q.korean+'<br><span class="muted">2초 후 다음 문제로 넘어갑니다.</span></div>';setTimeout(()=>{i++;show()},2000)}
 function esc(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
