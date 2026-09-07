@@ -17,7 +17,7 @@
 <div class="field"><label>단어장 선택</label><select id="set"></select></div>
 <p id="setInfo" class="muted"></p>
 <button id="start">시험 시작</button>
-<div id="status" class="muted" style="margin-top:10px">첫 시험 때 무료 AI 모델을 브라우저에 한 번 불러옵니다.</div>
+<div id="status" class="muted" style="margin-top:10px">랭킹 공정성을 위해 정답은 엄격하게 판정됩니다.</div>
 <div class="ranking"><h2>🏆 TOP 10</h2><div id="rankingSetup" class="muted">랭킹 불러오는 중...</div></div>
 </section>
 <section id="quiz" class="hidden">
@@ -40,13 +40,12 @@
 </section>
 </div></div>
 <script type="module">
-import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm';
 import { loadRanking, saveScore } from './ranking.js';
-const TIME_LIMIT=7,AI_THRESHOLD=.80;
+const TIME_LIMIT=7;
 const VOCAB_SETS={'기본 단어장':[
 {english:'abandon',korean:'버리다, 포기하다'},{english:'accurate',korean:'정확한, 정밀한'},{english:'consume',korean:'소비하다, 섭취하다'},{english:'purchase',korean:'구매하다, 사다'},{english:'reduce',korean:'줄이다, 감소시키다'},{english:'maintain',korean:'유지하다'},{english:'require',korean:'요구하다, 필요로 하다'},{english:'increase',korean:'증가하다, 늘리다'},{english:'provide',korean:'제공하다'},{english:'consider',korean:'고려하다, 생각하다'}]};
 const GENERIC_ANSWERS=new Set(['하다','되다','이다','시키다','있다','없다','것','거','수','함','함다','한다']);
-const $=id=>document.getElementById(id);let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,extractor=null,results=[],playerName='',selectedSet='';
+const $=id=>document.getElementById(id);let rows=[],questions=[],i=0,score=0,started=0,ticker=null,locked=false,results=[],playerName='',selectedSet='';
 function initSets(){for(const name of Object.keys(VOCAB_SETS)){const o=document.createElement('option');o.value=name;o.textContent=name;$('set').appendChild(o)}updateSetInfo()}
 function updateSetInfo(){const r=VOCAB_SETS[$('set').value]||[];$('setInfo').textContent='총 '+r.length+'문제 · 전체 문제 완료 시 랭킹 반영';loadRanking($('set').value,$('rankingSetup'))}
 function norm(s){return String(s||'').trim().toLowerCase().replace(/[~!@#$%^&*()_+={}\[\]:"'<>?.\\-]/g,'').replace(/\s+/g,' ')}
@@ -56,11 +55,10 @@ function simple(u,c){u=norm(u);c=norm(c);if(!u||!c)return false;if(u===c)return 
 function isJamoOnly(s){const t=compact(s);return !!t&&/^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t)}
 function isTooGeneric(s){const t=compact(s);return GENERIC_ANSWERS.has(t)}
 function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
-function cosine(a,b){let d=0,aa=0,bb=0;for(let j=0;j<a.length;j++){d+=a[j]*b[j];aa+=a[j]*a[j];bb+=b[j]*b[j]}return d/(Math.sqrt(aa)*Math.sqrt(bb)||1)}async function vec(t){const o=await extractor(t,{pooling:'mean',normalize:true});return Array.from(o.data)}
-async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false,sim:0};if(list.some(c=>u===c))return{ok:true,sim:1};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false,sim:0};for(const c of list)if(simple(u,c))return{ok:true,sim:1};if(uc.length<3||!extractor)return{ok:false,sim:0};const uv=await vec(u);let best=-1;for(const c of list)best=Math.max(best,cosine(uv,await vec(c)));return{ok:best>=AI_THRESHOLD,sim:best}}
+async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false};if(list.some(c=>u===c))return{ok:true};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false};for(const c of list)if(simple(u,c))return{ok:true};return{ok:false}}
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent='문제 '+(i+1)+' / '+questions.length;$('scoreNow').textContent='점수 '+score;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
-async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false,sim:0};if(!timeout&&user){$('feedback').innerHTML='<div class="feedback">판정 중...</div>';try{r=await judge(user,q.korean)}catch{r={ok:answers(q.korean).some(c=>simple(user,c)),sim:0}}}if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});$('feedback').innerHTML=r.ok?'<div class="feedback ok">✅ 정답<br>정답: '+q.korean+'</div>':'<div class="feedback no">'+(timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+q.korean+'</div>';$('next').classList.remove('hidden')}
+async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false};if(!timeout&&user)r=await judge(user,q.korean);if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});$('feedback').innerHTML=r.ok?'<div class="feedback ok">✅ 정답<br>정답: '+q.korean+'</div>':'<div class="feedback no">'+(timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+q.korean+'</div>';$('next').classList.remove('hidden')}
 function esc(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 async function finish(){clearInterval(ticker);$('quiz').classList.add('hidden');$('done').classList.remove('hidden');$('playerResult').textContent=playerName+' · '+selectedSet;$('mScore').textContent=score+'/'+questions.length;$('mRate').textContent=Math.round(score/questions.length*100)+'%';const w=results.filter(r=>!r.ok);$('wrong').innerHTML=w.length?'<h3>오답</h3><table><tr><th>영어</th><th>내 답</th><th>정답</th></tr>'+w.map(r=>'<tr><td>'+esc(r.english)+'</td><td>'+esc(r.user)+'</td><td>'+esc(r.correct)+'</td></tr>').join('')+'</table><br>':'<p class="feedback ok">전부 맞았습니다!</p>';await saveScore(playerName,selectedSet,score,questions.length,$('saveStatus'));await loadRanking(selectedSet,$('rankingDone'))}
-$('start').onclick=async()=>{playerName=$('nickname').value.trim();if(playerName.length<2||playerName.length>16)return alert('닉네임은 2~16자로 입력하세요.');selectedSet=$('set').value;rows=VOCAB_SETS[selectedSet]||[];$('status').textContent=selectedSet+' · '+rows.length+'문제 · AI 모델 불러오는 중...';$('start').disabled=true;try{extractor=await pipeline('feature-extraction','Xenova/paraphrase-multilingual-MiniLM-L12-v2');$('status').textContent='AI 모델 준비 완료'}catch{$('status').textContent='AI 모델을 못 불러와 기본 판정으로 진행합니다.'}questions=shuffle(rows);$('setup').classList.add('hidden');$('quiz').classList.remove('hidden');show()};$('set').onchange=updateSetInfo;$('submit').onclick=()=>submit(false);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')submit(false)});$('next').onclick=()=>{i++;show()};initSets();
+$('start').onclick=()=>{playerName=$('nickname').value.trim();if(playerName.length<2||playerName.length>16)return alert('닉네임은 2~16자로 입력하세요.');selectedSet=$('set').value;rows=VOCAB_SETS[selectedSet]||[];$('status').textContent=selectedSet+' · '+rows.length+'문제 · 엄격 판정 모드';questions=shuffle(rows);$('setup').classList.add('hidden');$('quiz').classList.remove('hidden');show()};$('set').onchange=updateSetInfo;$('submit').onclick=()=>submit(false);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')submit(false)});$('next').onclick=()=>{i++;show()};initSets();
 </script></body></html>
