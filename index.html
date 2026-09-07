@@ -6,6 +6,7 @@
 <title>7초 단어 시험</title>
 <style>
 :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111;background:#f5f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:0 auto;padding:28px 18px}.card{background:#fff;border-radius:22px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.08)}h1,h2{margin:0 0 10px}.sub{color:#666;margin:0 0 24px}.field{margin:14px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px}input,select,button{width:100%;border-radius:13px;font-size:17px;padding:14px}input,select{border:1px solid #d7dbe5;background:#fff}button{border:0;background:#111;color:#fff;font-weight:800;cursor:pointer}button.secondary{background:#eef1f6;color:#111}.hidden{display:none}.word{font-size:52px;font-weight:900;text-align:center;margin:36px 0 10px;word-break:break-word}.timer{text-align:center;font-size:30px;font-weight:800;margin-bottom:22px}.meta{display:flex;justify-content:space-between;color:#666;font-size:14px}.feedback{padding:16px;border-radius:14px;margin:14px 0}.ok{background:#eaf8ee;color:#176b2c}.no{background:#fff0f0;color:#a42626}.muted{color:#777;font-size:14px}.result-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:20px 0}.metric{background:#f6f7fa;border-radius:15px;padding:16px;text-align:center}.metric b{display:block;font-size:24px;margin-top:5px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}.ranking{margin-top:28px;padding-top:22px;border-top:1px solid #eee}@media(max-width:560px){.result-row{grid-template-columns:1fr}.card{padding:20px}.word{font-size:42px}}
+.auto-next{margin-top:16px;padding-top:12px;border-top:1px solid currentColor}.auto-next-label{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px;font-weight:700}.auto-next-time{font-variant-numeric:tabular-nums;white-space:nowrap}.auto-next-track{height:8px;margin-top:9px;border-radius:999px;background:rgba(0,0,0,.1);overflow:hidden}.auto-next-fill{height:100%;background:currentColor;border-radius:inherit;transform-origin:left;will-change:transform}
 </style>
 </head>
 <body>
@@ -42,6 +43,7 @@
 <script type="module">
 import { loadRanking, saveScore } from './ranking.js';
 const TIME_LIMIT=7;
+const FEEDBACK_DELAY=2000;
 const VOCAB_SETS={'기본 단어장':[
 {english:'abandon',korean:'버리다, 포기하다'},{english:'accurate',korean:'정확한, 정밀한'},{english:'consume',korean:'소비하다, 섭취하다'},{english:'purchase',korean:'구매하다, 사다'},{english:'reduce',korean:'줄이다, 감소시키다'},{english:'maintain',korean:'유지하다'},{english:'require',korean:'요구하다, 필요로 하다'},{english:'increase',korean:'증가하다, 늘리다'},{english:'provide',korean:'제공하다'},{english:'consider',korean:'고려하다, 생각하다'}]};
 const GENERIC_ANSWERS=new Set(['하다','되다','이다','시키다','있다','없다','것','거','수','함','함다','한다']);
@@ -68,7 +70,23 @@ function sameSafeSynonym(a,b){a=norm(a);b=norm(b);return SAFE_SYNONYM_GROUPS.som
 function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
 async function judge(user,correct){const list=answers(correct),u=norm(user),uc=compact(user);if(!u)return{ok:false};if(list.some(c=>u===c))return{ok:true};if(isJamoOnly(u)||isTooGeneric(u)||uc.length<2)return{ok:false};for(const c of list){if(simple(u,c)||sameSafeSynonym(u,c))return{ok:true}}return{ok:false}}
 function show(){if(i>=questions.length)return finish();locked=false;$('feedback').innerHTML='';$('next').classList.add('hidden');$('submit').classList.remove('hidden');$('answer').disabled=false;$('answer').value='';$('answer').focus();$('word').textContent=questions[i].english;$('progress').textContent='문제 '+(i+1)+' / '+questions.length;$('scoreNow').textContent='점수 '+score;started=performance.now();clearInterval(ticker);ticker=setInterval(()=>{const remain=Math.max(0,TIME_LIMIT-(performance.now()-started)/1000);$('time').textContent=remain.toFixed(1);if(remain<=0){clearInterval(ticker);submit(true)}},100)}
-async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false};if(!timeout&&user)r=await judge(user,q.korean);if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});$('feedback').innerHTML=r.ok?'<div class="feedback ok">✅ 정답<br>정답: '+q.korean+'<br><span class="muted">2초 후 다음 문제로 넘어갑니다.</span></div>':'<div class="feedback no">'+(timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+q.korean+'<br><span class="muted">2초 후 다음 문제로 넘어갑니다.</span></div>';setTimeout(()=>{i++;show()},2000)}
+async function submit(timeout=false){if(locked)return;locked=true;clearInterval(ticker);$('answer').disabled=true;$('submit').classList.add('hidden');const q=questions[i],user=timeout?'':$('answer').value.trim();let r={ok:false};if(!timeout&&user)r=await judge(user,q.korean);if(r.ok)score++;results.push({english:q.english,user:user||'(시간 초과)',correct:q.korean,ok:r.ok});const destination=i===questions.length-1?'결과 보기까지':'다음 문제까지';
+$('feedback').innerHTML='<div class="feedback '+(r.ok?'ok':'no')+'"><div role="status">'+(r.ok?'✅ 정답':timeout?'⏰ 시간 초과':'❌ 오답')+'<br>정답: '+esc(q.korean)+'</div><div class="auto-next"><div class="auto-next-label"><span>'+destination+'</span><span id="autoNextTime" class="auto-next-time" aria-hidden="true">2.0초</span></div><div class="auto-next-track" aria-hidden="true"><div id="autoNextFill" class="auto-next-fill"></div></div><span class="muted">자동으로 이동합니다.</span></div></div>';
+startAutoNext()}
+function startAutoNext(){
+  const countdownStarted=performance.now();
+  const time=$('autoNextTime'),fill=$('autoNextFill');
+  let frame;
+  function paint(){
+    const remaining=Math.max(0,FEEDBACK_DELAY-(performance.now()-countdownStarted));
+    time.textContent=(Math.ceil(remaining/100)/10).toFixed(1)+'초';
+    fill.style.transform='scaleX('+(remaining/FEEDBACK_DELAY)+')';
+    if(remaining>0)frame=requestAnimationFrame(paint);
+  }
+  paint();
+  setTimeout(()=>{cancelAnimationFrame(frame);i++;show()},FEEDBACK_DELAY);
+}
+
 function esc(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 async function finish(){clearInterval(ticker);$('quiz').classList.add('hidden');$('done').classList.remove('hidden');$('playerResult').textContent=playerName+' · '+selectedSet;$('mScore').textContent=score+'/'+questions.length;$('mRate').textContent=Math.round(score/questions.length*100)+'%';const w=results.filter(r=>!r.ok);$('wrong').innerHTML=w.length?'<h3>오답</h3><table><tr><th>영어</th><th>내 답</th><th>정답</th></tr>'+w.map(r=>'<tr><td>'+esc(r.english)+'</td><td>'+esc(r.user)+'</td><td>'+esc(r.correct)+'</td></tr>').join('')+'</table><br>':'<p class="feedback ok">전부 맞았습니다!</p>';await saveScore(playerName,selectedSet,score,questions.length,$('saveStatus'));await loadRanking(selectedSet,$('rankingDone'))}
 $('start').onclick=()=>{playerName=$('nickname').value.trim();if(playerName.length<2||playerName.length>16)return alert('닉네임은 2~16자로 입력하세요.');selectedSet=$('set').value;rows=VOCAB_SETS[selectedSet]||[];$('status').textContent=selectedSet+' · '+rows.length+'문제 · 엄격 판정 모드';questions=shuffle(rows);$('setup').classList.add('hidden');$('quiz').classList.remove('hidden');show()};$('set').onchange=updateSetInfo;$('submit').onclick=()=>submit(false);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')submit(false)});initSets();
