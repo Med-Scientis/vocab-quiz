@@ -46,6 +46,169 @@ const TIME_LIMIT=7;
 const FEEDBACK_DELAY=2000;
 const VOCAB_SETS={'기본 단어장':[
 {english:'abandon',korean:'버리다, 포기하다'},{english:'accurate',korean:'정확한, 정밀한'},{english:'consume',korean:'소비하다, 섭취하다'},{english:'purchase',korean:'구매하다, 사다'},{english:'reduce',korean:'줄이다, 감소시키다'},{english:'maintain',korean:'유지하다'},{english:'require',korean:'요구하다, 필요로 하다'},{english:'increase',korean:'증가하다, 늘리다'},{english:'provide',korean:'제공하다'},{english:'consider',korean:'고려하다, 생각하다'}]};
+VOCAB_SETS['챕터 1']=[
+  {
+    "english": "resume",
+    "korean": "이력서"
+  },
+  {
+    "english": "opening",
+    "korean": "공석, 결원, 개장, 개시"
+  },
+  {
+    "english": "applicant",
+    "korean": "지원자, 신청자"
+  },
+  {
+    "english": "requirement",
+    "korean": "필요조건, 요건"
+  },
+  {
+    "english": "meet",
+    "korean": "만족시키다"
+  },
+  {
+    "english": "qualified",
+    "korean": "자격있는, 적격의"
+  },
+  {
+    "english": "candidate",
+    "korean": "후보자, 지원자"
+  },
+  {
+    "english": "confidence",
+    "korean": "확신, 자신, 신임"
+  },
+  {
+    "english": "highly",
+    "korean": "매우, 대단히"
+  },
+  {
+    "english": "professional",
+    "korean": "전문적인, 직업의"
+  },
+  {
+    "english": "interview",
+    "korean": "면접, 면접을 보다"
+  },
+  {
+    "english": "hire",
+    "korean": "고용하다"
+  },
+  {
+    "english": "training",
+    "korean": "교육, 훈련"
+  },
+  {
+    "english": "reference",
+    "korean": "추천서, 참고"
+  },
+  {
+    "english": "position",
+    "korean": "일자리, 직책, 두다"
+  },
+  {
+    "english": "achievement",
+    "korean": "성취, 달성"
+  },
+  {
+    "english": "impressed",
+    "korean": "인상 깊게 생각하는, 감명을 받은"
+  },
+  {
+    "english": "excellent",
+    "korean": "훌륭한, 탁월한"
+  },
+  {
+    "english": "eligible",
+    "korean": "자격이 있는, 적격의"
+  },
+  {
+    "english": "identify",
+    "korean": "알아보다, 확인하다"
+  },
+  {
+    "english": "associate",
+    "korean": "관련시키다"
+  },
+  {
+    "english": "condition",
+    "korean": "조건"
+  },
+  {
+    "english": "employment",
+    "korean": "고용"
+  },
+  {
+    "english": "lack",
+    "korean": "~이 없다, 부족"
+  },
+  {
+    "english": "managerial",
+    "korean": "관리의"
+  },
+  {
+    "english": "diligent",
+    "korean": "성실한"
+  },
+  {
+    "english": "familiar",
+    "korean": "익숙한, 친숙한"
+  },
+  {
+    "english": "proficiency",
+    "korean": "숙달, 능숙"
+  },
+  {
+    "english": "prospective",
+    "korean": "장래의, 미래의"
+  },
+  {
+    "english": "appeal",
+    "korean": "관심을 끌다, 매력적이다"
+  },
+  {
+    "english": "specialize",
+    "korean": "~를 전공하다, 전문적으로 다루다"
+  },
+  {
+    "english": "apprehensive",
+    "korean": "걱정하는, 염려하는"
+  },
+  {
+    "english": "consultant",
+    "korean": "고문, 컨설턴트"
+  },
+  {
+    "english": "entitle",
+    "korean": "자격을 주다"
+  },
+  {
+    "english": "degree",
+    "korean": "학위"
+  },
+  {
+    "english": "payroll",
+    "korean": "임금 대장, 급료 명부"
+  },
+  {
+    "english": "recruit",
+    "korean": "모집하다"
+  },
+  {
+    "english": "certification",
+    "korean": "증명서, 증명"
+  },
+  {
+    "english": "occupation",
+    "korean": "직업"
+  },
+  {
+    "english": "wage",
+    "korean": "임금, 급료"
+  }
+];
+
 const GENERIC_ANSWERS=new Set(['하다','되다','이다','시키다','있다','없다','것','거','수','함','함다','한다']);
 const SAFE_SYNONYM_GROUPS=[
 ['구매하다','구입하다','사다'],
